@@ -1,3 +1,4 @@
+
 import enviroment as en
 import vehicles
 import pygame as pg
@@ -9,35 +10,66 @@ def run_app(screen):
     run = True
     move_mode = False
     near_node_move = None
-    font = pg.font.Font(None,36)
+    node_for_combining = None
+    nodes_combining_memory = None
+    waiting_confirm = False
+    false_text = False
+    font = pg.font.Font(None, 25)
+
     while run:
 
         screen.fill((0, 0, 0))
         # roads rendering
         for road in en.roads.values():
-            pg.draw.line(screen, (120, 120, 120), en.nodes[road.start], en.nodes[road.end], 12)
+            pg.draw.line(screen, (120, 120, 120), en.nodes[road.start].pos(), en.nodes[road.end].pos(), 12)
         # nodes rendering
         if rt_ed == True:
-            for nod in en.nodes.values():
-                pg.draw.circle(screen, "red", nod, 8)
+            for nod_id,coords in en.nodes.items():
+                pg.draw.circle(screen, "red", coords.pos(), 8)
+                text = font.render(str(nod_id), True, (255, 255, 255))
+                screen.blit(text,coords.pos())
 
         current_mouse_pos = pg.mouse.get_pos()
+        en.del_duplicate_roads()
+        en.cursor_on_road(current_mouse_pos)
+
+        if waiting_confirm == True:
+            text = font.render("  Do u want to combining nodes? (Y/N)", True, (255, 255, 255))
+            screen.blit(text, current_mouse_pos)
+        if false_text == True:
+            text = font.render("False operation", True, (255, 255, 255))
+            screen.blit(text, current_mouse_pos)
 
         pg.display.update()
 
         for event in pg.event.get():
             keys = pg.key.get_pressed()
 
-            if event.type == pg.MOUSEBUTTONDOWN:
+            if event.type == pg.KEYDOWN:
                 # route editing mode
-                if event.button == 3 and rt_ed == False:
+                if event.key == pg.K_RSHIFT and rt_ed == False:
                     rt_ed = True
-                elif event.button == 3:
+                    print(" - route ed mode ON")
+                elif event.key == pg.K_RSHIFT:
                     rt_ed = False
+                    print(" - route ed mode OFF")
 
+                # combining
+                if event.key == pg.K_y and waiting_confirm == True:
+                    en.combining_nodes(nodes_combining_memory[0],nodes_combining_memory[1])
+                    print(" - combine success")
+                    waiting_confirm = False
+                if event.key == pg.K_n and waiting_confirm == True:
+                    move_mode = False
+                    nodes_combining_memory = None
+                    print(" - combine rejected")
+                    waiting_confirm = False
+
+            if event.type == pg.MOUSEBUTTONDOWN:
                 # near node for moving
                 if keys[pg.K_LSHIFT]:
                     near_node_move = en.nearest_node(current_mouse_pos)
+                    first_node = None
 
                 # routes & nodes creating
                 elif event.button == 1 and rt_ed == True and move_mode == False:
@@ -56,18 +88,25 @@ def run_app(screen):
                     if move_mode == True:
                         en.move_node(near_node_move,current_mouse_pos)
                         first_node = None
-            # if 2 nodes near
+
+            # combining nodes
             if event.type == pg.MOUSEBUTTONUP:
-                node_for_combining = en.search_near_node(near_node_move)
-                if node_for_combining != None and near_node_move != node_for_combining:
-                    print("Желаете ли вы объеденить ноды? (Y–yes, N-no)")
-                    i = (input())
-                    if i == "Y":
-                        en.combining_nodes(near_node_move,node_for_combining)
-                    elif i == "N":
-                        move_mode = False
-            else:
+                if move_mode == True:
+                    node_for_combining = en.search_near_node(near_node_move)
+                    if near_node_move == node_for_combining and near_node_move != None:
+                        false_text = True
+                    elif node_for_combining != None:
+                        waiting_confirm = True
+                        false_text = False
+                        nodes_combining_memory = (near_node_move,node_for_combining)
+                        print(" - combine nodes question:",near_node_move,node_for_combining)
                 move_mode = False
+
+            # road delete
+            # cursor_on = en.cursor_on_road(current_mouse_pos)
+            # if cursor_on != None:
+            #
+            #     en.delete_road(cursor_on)
 
             if event.type == pg.QUIT:
                 print("Nodes:",en.nodes)
